@@ -1,0 +1,106 @@
+name: CI
+
+on:
+  push:
+    branches-ignore:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install linting tools
+        run: |
+          pip install ruff yamllint
+
+      - name: Lint Python files
+        run: |
+          find . -name "*.py" -not -path "./.git/*" | \
+          xargs ruff check --output-format=github || true
+
+      - name: Lint YAML files
+        run: |
+          find . -name "*.yml" -o -name "*.yaml" | \
+          grep -v ".git" | \
+          xargs yamllint -d relaxed || true
+
+      - name: Lint Dockerfiles
+        run: |
+          find . -name "Dockerfile*" -not -path "./.git/*" | \
+          while read f; do
+            echo "Checking $f"
+            docker run --rm -i hadolint/hadolint < "$f" || true
+          done
+
+  validate-structure:
+    name: Validate Repository Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check required directories exist
+        run: |
+          dirs=(
+            ".github/workflows"
+            "infrastructure/ansible"
+            "infrastructure/terraform"
+            "services/schema-registry"
+            "pipelines/dags"
+            "schema-definitions/tenants"
+            "deploy/docker-compose"
+            "docs/adr"
+          )
+          for dir in "${dirs[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "❌ Missing required directory: $dir"
+              exit 1
+            else
+              echo "✅ Found: $dir"
+            fi
+          done
+
+      - name: Check required files exist
+        run: |
+          files=(
+            ".gitignore"
+            ".env.example"
+            "Makefile"
+            "README.md"
+            "docs/adr/ADR-001-tenancy-model.md"
+            "docs/adr/ADR-002-stack-selection.md"
+            "docs/adr/ADR-003-medallion-architecture.md"
+            "docs/adr/ADR-004-aws-production-target.md"
+            "docs/adr/ADR-005-organisational-hierarchy.md"
+          )
+          for file in "${files[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Missing required file: $file"
+              exit 1
+            else
+              echo "✅ Found: $file"
+            fi
+          done
+
+      - name: Check .env is not committed
+        run: |
+          if [ -f ".env" ]; then
+            echo "❌ .env file found in repository - remove it immediately"
+            exit 1
+          else
+            echo "✅ No .env file committed"
+          fi
