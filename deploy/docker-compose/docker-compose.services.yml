@@ -1,0 +1,36 @@
+version: '3.8'
+
+services:
+
+  schema-registry:
+    build:
+      context: ../../services/schema-registry
+      dockerfile: Dockerfile
+    container_name: schema-registry
+    hostname: schema-registry
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg2://platform:platform123@postgres:5432/schema_registry
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-changeme123456}
+      BRONZE_BUCKET: bronze
+      SILVER_BUCKET: silver
+      GOLD_BUCKET: gold
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - platform-network
+
+networks:
+  platform-network:
+    external: true
+    name: platform-network
