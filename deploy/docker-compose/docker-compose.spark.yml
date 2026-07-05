@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+
+  spark-master:
+    image: apache/spark:3.5.1
+    container_name: spark-master
+    hostname: spark-master
+    ports:
+      - "8181:8080"
+      - "7077:7077"
+    environment:
+      SPARK_MODE: master
+      SPARK_MASTER_WEBUI_PORT: 8080
+      SPARK_DRIVER_MEMORY: 2g
+    command: >
+      /bin/bash -c "/opt/spark/sbin/start-master.sh &&
+      tail -f /opt/spark/logs/*"
+    restart: unless-stopped
+    networks:
+      - platform-network
+
+  spark-worker:
+    image: apache/spark:3.5.1
+    container_name: spark-worker
+    hostname: spark-worker
+    ports:
+      - "8182:8081"
+    environment:
+      SPARK_MODE: worker
+      SPARK_MASTER_URL: spark://spark-master:7077
+      SPARK_WORKER_MEMORY: 4g
+      SPARK_WORKER_CORES: 2
+    command: >
+      /bin/bash -c "/opt/spark/sbin/start-worker.sh spark://spark-master:7077 &&
+      tail -f /opt/spark/logs/*"
+    depends_on:
+      - spark-master
+    restart: unless-stopped
+    networks:
+      - platform-network
+
+networks:
+  platform-network:
+    external: true
+    name: platform-network
